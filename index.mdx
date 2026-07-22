@@ -1,35 +1,35 @@
 ---
 title: "Introduction"
-description: "Xicar documentation — developer guides and CI/CD reference."
+description: "Start here to learn about Xicar and find the right developer documentation."
 ---
 
-Welcome to the Xicar documentation site. This is the canonical home for CI/CD, release engineering, and operational guides for the Xicar mobile app.
+Welcome to the Xicar documentation.
 
-## CI / release admins
+Xicar is a ride-hailing app built for and operating in Iloilo City. This site helps developers understand the codebase, set up their local environment, and contribute safely.
 
-Start with the [CI/CD Overview](/ci-cd/overview) for the full pipeline — triggers, flavors, Firebase App Distribution, and known gaps.
+## Find your starting point
 
 <CardGroup cols={2}>
-  <Card title="CI/CD Overview" icon="rocket" href="/ci-cd/overview">
-    Pipeline architecture, triggers, and distribution.
+  <Card title="Getting started" icon="rocket" href="/quickstart">
+    Clone the repositories and prepare your local development environment.
   </Card>
 
-  <Card title="Secrets" icon="key" href="/ci-cd/secrets">
-    All GitHub Actions secrets and how to generate them.
-  </Card>
-
-  <Card title="iOS CI" icon="apple" href="/ci-cd/ios">
-    Match adhoc signing and iOS CI parity.
-  </Card>
-
-  <Card title="Local Testing" icon="flask" href="/ci-cd/local-testing">
-    Validate workflows with actionlint and act.
+  <Card title="CI/CD" icon="rocket" href="/ci-cd/overview">
+    Learn how builds, testing, and app distribution work.
   </Card>
 </CardGroup>
 
-## Repositories
+## Tools and services
 
-| Repo | Role |
-| --- | --- |
-| [Xicar-PH/XicarHome](https://github.com/Xicar-PH/XicarHome) | Flutter app — caller workflow \+ Fastlane |
-| [xicar-ph/workflows](https://github.com/xicar-ph/workflows) | Shared reusable GitHub Actions pipeline |
+Xicar uses the following services:
+
+- **GitHub** for source code and collaboration
+- **Bitwarden** for shared credentials and secrets
+- **Firebase** for application services and distribution
+- **Hostinger** for hosting
+
+Access to these services is invite-only. Ask your team lead or project owner for the invitations you need.
+
+## Need help?
+
+For documentation questions, contact Chad Fernandez on Discord at `@chof64`.
