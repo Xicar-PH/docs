@@ -3,9 +3,9 @@
   "theme": "mint",
   "name": "Xicar Docs",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#49ad9d",
+    "light": "#6593c9",
+    "dark": "#cc578d"
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -21,14 +21,14 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "GitHub",
+          "href": "https://github.com/xicar-ph",
+          "icon": "github"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Discord",
+          "href": "https://discord.com/channels/1528115933149659298",
+          "icon": "discord"
         }
       ]
     },
