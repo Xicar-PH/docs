@@ -1,0 +1,90 @@
+---
+title: "Firebase App Distribution"
+description: "How CI distributes dev and beta builds to testers via Firebase App Distribution."
+sidebarTitle: "Firebase Distribution"
+---
+
+How CI distributes **dev** and **beta** builds to testers via Firebase App Distribution on a **separate** Firebase project from runtime.
+
+Related docs: [Secrets](/ci-cd/secrets) · [iOS CI](/ci-cd/ios) · [CI/CD Overview](/ci-cd/overview)
+
+---
+
+## Two Firebase projects
+
+|  | **xicarv2** | **xicarph---builds** |
+| --- | --- | --- |
+| Purpose | Runtime (Auth, Firestore, etc.) | App Distribution only |
+| Project number | (existing) | `539047008498` |
+| CI materializes | `google-services.json`, `GoogleService-Info.plist`, `.env` FB keys | Nothing at build time |
+| CI uploads to | — | Signed APKs (dev/beta) and IPAs (dev/beta) |
+
+**Build with `xicarv2` config, distribute via `xicarph---builds`.**
+
+Prod builds are **not** uploaded to Firebase App Distribution — CI produces APK/IPA artifacts only.
+
+---
+
+## Registered apps (xicarph---builds)
+
+| Flavor | Platform | Package / bundle ID | App ID |
+| --- | --- | --- | --- |
+| dev | Android | `com.xicartaxi.xicar_user.dev` | `1:539047008498:android:a50012ba5ae13389ed586b`_(TODO: update after registering new app)_ |
+| dev | iOS | `com.xicar.userapp.dev` | `1:539047008498:ios:61a1de46e426cb10ed586b`_(TODO: update after registering new app)_ |
+| beta | Android | `com.xicartaxi.xicar_user.beta` | `1:539047008498:android:5d17d9b6db5fa3d4ed586b` |
+| beta | iOS | `com.xicar.userapp.beta` | `1:539047008498:ios:06f64822aa0b8b64ed586b` |
+
+App IDs and tester group names live in [`fastlane/firebase_app_distribution.rb`](https://github.com/Xicar-PH/XicarHome/blob/main/fastlane/firebase_app_distribution.rb).
+
+---
+
+## Tester groups
+
+Create in Firebase Console → **App Distribution** → **Testers & Groups**:
+
+| Group | Used by |
+| --- | --- |
+| `general-xicar-internal` | All distributable flavors (`dev` and `beta`) |
+
+Add tester emails to each group. Testers install via the Firebase App Distribution app or email invite link.
+
+---
+
+## Service account (CI uploads)
+
+1. Google Cloud Console → project **xicarph---builds**
+2. **IAM & Admin** → **Service accounts** → create `ci-app-distribution`
+3. Role: **Firebase App Distribution Admin**
+4. Generate JSON key → GitHub secret `FIREBASE_APP_DIST_SERVICE_ACCOUNT_JSON`
+5. Enable **Firebase App Distribution API** if not already enabled
+
+### Android registration notes
+
+When adding Android apps in `xicarph---builds`, **skip SHA-1/SHA-256 fingerprints**. Those belong on `xicarv2` for runtime Auth. The distribution project only receives APK uploads.
+
+---
+
+## How CI uses it
+
+Fastlane lane `firebase_app_distribution` (via `fastlane-plugin-firebase_app_distribution`):
+
+- **dev / beta** → upload after build
+- **prod** → skip distribution; artifacts only
+
+Local equivalent:
+
+```bash
+export FLAVOR=beta
+# materialize secrets locally first
+bundle exec fastlane android ci
+# or
+bundle exec fastlane ios ci
+```
+
+---
+
+## See also
+
+- [Secrets](/ci-cd/secrets) — secret generation
+- [CI/CD Overview](/ci-cd/overview) — CI triggers and pipeline
+- [`fastlane/firebase_app_distribution.rb`](https://github.com/Xicar-PH/XicarHome/blob/main/fastlane/firebase_app_distribution.rb) — app IDs in repo

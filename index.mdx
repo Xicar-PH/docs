@@ -1,0 +1,35 @@
+---
+title: "Introduction"
+description: "Xicar documentation — developer guides and CI/CD reference."
+---
+
+Welcome to the Xicar documentation site. This is the canonical home for CI/CD, release engineering, and operational guides for the Xicar mobile app.
+
+## CI / release admins
+
+Start with the [CI/CD Overview](/ci-cd/overview) for the full pipeline — triggers, flavors, Firebase App Distribution, and known gaps.
+
+<CardGroup cols={2}>
+  <Card title="CI/CD Overview" icon="rocket" href="/ci-cd/overview">
+    Pipeline architecture, triggers, and distribution.
+  </Card>
+
+  <Card title="Secrets" icon="key" href="/ci-cd/secrets">
+    All GitHub Actions secrets and how to generate them.
+  </Card>
+
+  <Card title="iOS CI" icon="apple" href="/ci-cd/ios">
+    Match adhoc signing and iOS CI parity.
+  </Card>
+
+  <Card title="Local Testing" icon="flask" href="/ci-cd/local-testing">
+    Validate workflows with actionlint and act.
+  </Card>
+</CardGroup>
+
+## Repositories
+
+| Repo | Role |
+| --- | --- |
+| [Xicar-PH/XicarHome](https://github.com/Xicar-PH/XicarHome) | Flutter app — caller workflow \+ Fastlane |
+| [xicar-ph/workflows](https://github.com/xicar-ph/workflows) | Shared reusable GitHub Actions pipeline |

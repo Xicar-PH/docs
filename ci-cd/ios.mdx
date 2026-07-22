@@ -1,0 +1,178 @@
+---
+title: "iOS CI"
+description: "How iOS dev, beta, and prod builds run in GitHub Actions alongside Android."
+sidebarTitle: "iOS"
+---
+
+How iOS **dev**, **beta**, and **prod** builds run in GitHub Actions alongside Android.
+
+**Workflow:** [`build.yml`](https://github.com/Xicar-PH/XicarHome/blob/main/.github/workflows/build.yml) (`ios` job on `macos-latest`)
+
+**Fastlane:** [`fastlane/Fastfile`](https://github.com/Xicar-PH/XicarHome/blob/main/fastlane/Fastfile) (`ios` platform lanes)
+
+Related docs: [Firebase Distribution](/ci-cd/firebase-distribution) · [Secrets](/ci-cd/secrets)
+
+---
+
+## What the iOS job does
+
+1. Checkout, Ruby/Bundler, Flutter (FVM)
+2. Fastlane `ios ci`:
+   - Materialize `.env` and `GoogleService-Info.plist` (from `xicarv2` secrets)
+   - `setup_ci` \+ `match adhoc` (readonly in CI) — creates a temporary keychain on the runner so certs import without login-keychain password prompts
+   - `update_code_signing_settings` — switches Runner \+ the flavor Live Activity extension to manual signing with match adhoc profiles
+   - `flutter pub get` (generates `ios/Flutter/Generated.xcconfig` required by CocoaPods)
+   - `pod install`
+   - `flutter build ipa --export-method ad-hoc --flavor <dev|beta|prod>`
+   - Firebase App Distribution upload for **dev** and **beta** only
+3. Upload IPA \+ debug symbols as GitHub Actions artifacts
+
+---
+
+## Flavor mapping
+
+| Flavor | Xcode scheme | Bundle ID | CI trigger | Firebase App Distribution |
+| --- | --- | --- | --- | --- |
+| dev | `dev` | `com.xicar.userapp.dev` | `workflow_dispatch` only | Yes (`general-xicar-internal`) |
+| beta | `beta` | `com.xicar.userapp.beta` | push to `main` | Yes (`general-xicar-internal`) |
+| prod | `prod` | `com.xicar.userapp` | _deferred_ | No (artifacts only) |
+
+Live Activity extensions use per-flavor bundle IDs.
+
+---
+
+## One-time match setup (adhoc)
+
+Firebase App Distribution on iOS requires **ad-hoc** signed IPAs, not App Store distribution.
+
+### Developer Portal vs App Store Connect
+
+|  | Required for ad-hoc CI? | Created by |
+| --- | --- | --- |
+| **App IDs** (Identifiers in [Apple Developer](https://developer.apple.com/account/resources/identifiers/list)) | **Yes** | `bundle exec fastlane ios sync_signing` (local), or manually in the portal |
+| **App Store Connect apps** | **No** | `produce`**without**`skip_itc` — avoid for dev/beta Firebase distribution |
+
+Ad-hoc provisioning profiles reference bundle IDs registered as App IDs. There is no App Store listing or TestFlight record involved.
+
+<Note>
+  **`produce --skip_itc` is correct and safe.** It registers an App ID in the Developer portal only. Removing `--skip_itc` is what also creates an App Store Connect app — do not do that for internal ad-hoc builds.
+</Note>
+
+### 1. Create a private match repo
+
+```bash
+bundle install
+fastlane match init
+# Choose git storage; create e.g. github.com/your-org/xicar-ios-signing (private)
+```
+
+Set `MATCH_GIT_URL` in GitHub secrets to an HTTPS URL with embedded read-only PAT access (see step 4). Update [`fastlane/Matchfile`](https://github.com/Xicar-PH/XicarHome/blob/main/fastlane/Matchfile) if needed.
+
+### 2. Register App IDs and generate adhoc profiles (local)
+
+From a Mac with Apple Developer access (Account Holder or Admin), run once after cloning or when bundle IDs change:
+
+```bash
+bundle install
+export MATCH_TEAM_ID=<your-team-id>
+export MATCH_PASSWORD=<choose-a-passphrase>
+export MATCH_GIT_URL=git@github.com:your-org/xicar-ios-signing.git
+
+bundle exec fastlane ios sync_signing
+```
+
+This lane:
+
+1. Registers App IDs in the **Developer portal only** via `produce(..., skip_itc: true)` — **not** App Store Connect — for:
+   - `com.xicar.userapp.dev` \+ `com.xicar.userapp.dev.XicarLiveActivity`
+   - `com.xicar.userapp.beta` \+ `com.xicar.userapp.beta.XicarLiveActivity`
+   - `com.xicar.userapp` \+ `com.xicar.userapp.XicarLiveActivity`
+2. Enables **Push Notifications** and **Associated Domains** on each Runner App ID
+3. Runs `match adhoc` to create/update the distribution certificate and adhoc provisioning profiles in the match git repo
+
+<Note>
+  If you previously created App Store Connect apps with `produce` (without `skip_itc`), those records are unused for this flow. You can leave or delete them in App Store Connect; CI only needs Developer-portal App IDs \+ match profiles.
+</Note>
+
+<Note>
+  **Tip:** If registration is skipped, check that `CI` is not set in your shell (`echo $CI`). Some tools export `CI=true` locally; `sync_signing` only registers identifiers when match runs writable (non-CI).
+</Note>
+
+To **refresh** profiles after changing App ID capabilities or adding tester devices:
+
+```bash
+bundle exec fastlane match adhoc --force
+```
+
+Use a git URL with **write** access for the match repo when running locally (CI uses readonly).
+
+### 3. GitHub secrets
+
+| Secret | Value |
+| --- | --- |
+| `MATCH_PASSWORD` | Passphrase from step 3 |
+| `MATCH_GIT_URL` | `https://x-access-token:<PAT>@github.com/your-org/xicar-ios-signing.git` (PAT needs repo read) |
+| `MATCH_TEAM_ID` | Apple Developer Team ID |
+| `DEV_IOS_GOOGLE_SERVICES_PLIST_BASE64` | Base64 of dev `GoogleService-Info.plist` from `xicarv2` |
+| `BETA_IOS_GOOGLE_SERVICES_PLIST_BASE64` | Base64 of beta `GoogleService-Info.plist` from `xicarv2` |
+
+### 4. Tester devices
+
+Ad-hoc builds only install on devices registered in the Apple Developer portal. Add tester UDIDs to your provisioning profile (match handles this on `match adhoc` refresh) or use Firebase's tester device collection flow.
+
+---
+
+## Local builds (without CI)
+
+Use these to reproduce iOS flavor builds on your Mac before pushing.
+
+### Quick compile check (no signing)
+
+```bash
+fvm flutter pub get
+cd ios && pod install && cd ..
+
+# Beta (same flavor CI uses on main)
+fvm flutter build ios --release --flavor beta --dart-define-from-file=.env --no-codesign
+
+# Dev flavor
+fvm flutter build ios --debug --flavor dev --dart-define-from-file=.env --no-codesign
+```
+
+`--no-codesign` skips match/provisioning — enough to verify compilation (pods, GoogleMaps, Live Activity, etc.).
+
+### Full CI parity (signed ad-hoc IPA)
+
+Requires match secrets (`MATCH_PASSWORD`, `MATCH_GIT_URL`, `MATCH_TEAM_ID`) and a populated `.env`:
+
+```bash
+export FLAVOR=beta
+bundle exec fastlane ios ci
+```
+
+### Common local pitfalls
+
+- Run `fvm flutter pub get` **before** `pod install` (generates `ios/Flutter/Generated.xcconfig`).
+- Flavor schemes must keep `buildImplicitDependencies = YES` so CocoaPods builds GoogleMaps/Firebase before Runner compiles.
+- Xcode 15\+ requires iOS deployment target ≥ 15.0 (set in `ios/Podfile` and project configs).
+
+---
+
+## Local CI parity
+
+```bash
+export FLAVOR=beta
+export BETA_ENV_FILE="$(cat .env)"   # .env populated with beta values locally
+export BETA_IOS_GOOGLE_SERVICES_PLIST_BASE64="$(base64 -i ios/Runner/GoogleService-Info.plist | tr -d '\n')"
+# ... other secrets
+
+bundle exec fastlane ios ci
+```
+
+---
+
+## See also
+
+- [`tools/ios_flavors.rb`](https://github.com/Xicar-PH/XicarHome/blob/main/tools/ios_flavors.rb) — Xcode flavor setup
+- [CI/CD Overview](/ci-cd/overview) — CI triggers and pipeline
+- [`fastlane/Matchfile`](https://github.com/Xicar-PH/XicarHome/blob/main/fastlane/Matchfile) — match configuration

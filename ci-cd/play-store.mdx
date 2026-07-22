@@ -1,0 +1,60 @@
+---
+title: "Play Store (Deferred)"
+description: "Planned Google Play Internal testing flow — not the current distribution path."
+sidebarTitle: "Play Store"
+---
+
+<Warning>
+  **Status: deferred.** This doc describes a **planned** Play Store distribution flow. It is **not** the current path. Dev and beta builds are distributed today via **Firebase App Distribution** — see [CI/CD Overview](/ci-cd/overview) and [Firebase App Distribution](/ci-cd/firebase-distribution).
+</Warning>
+
+How the **Internal testing** track in Google Play Console would be configured, how testers would get onboarded, how builds would flow from CI to testers' devices, and what to do when something breaks.
+
+This document covers both Xicar Play Console apps (when Play upload is wired):
+
+- **Prod:** `com.xicartaxi.xicar_user` — would receive AABs from the `prod` CI build
+- **Beta:** `com.xicartaxi.xicar_user.beta` — would receive AABs from the `beta` CI build via **Internal app sharing**
+
+Both apps use the **same upload keystore** and the **same Firebase project** (`xicarv2`).
+
+---
+
+## Why Internal testing?
+
+| Track | Audience | Distribution | Speed |
+| --- | --- | --- | --- |
+| **Internal testing** | Up to 100 invited testers | Play Store app on invited accounts | Builds available within minutes; no Play Store review |
+| **Closed testing** | Larger opt-in tester pool | Play Store listing, opt-in URL | No review |
+| **Open testing** | Public beta users | Public Play Store listing | No review |
+| **Production** | All users | Public Play Store listing | Full Play Store review |
+
+**Internal testing** is the right fit for an internal QA loop: no Play Store review, testers get updates the moment CI uploads, up to 100 testers.
+
+---
+
+## Planned CI workflow
+
+When wired, the workflow would on every `push` to `main` / `prod` and on `workflow_dispatch`:
+
+1. Build a signed AAB
+2. Upload to Play Console Internal testing track
+3. Notify testers
+
+Trigger via GitHub → **Actions** → **Build Android (AAB \+ Play Internal)** → **Run workflow**.
+
+---
+
+## Prerequisites (when enabled)
+
+- Play Console app created for each flavor
+- Play App Signing enrolled (already done)
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` secret configured
+- Upload keystore in CI secrets — see [Android Keystore](/ci-cd/android-keystore)
+
+---
+
+## See also
+
+- [CI/CD Overview](/ci-cd/overview) — current CI workflow (Firebase App Distribution) and deferred prod/Play sections
+- [Android Keystore](/ci-cd/android-keystore) — upload key management
+- [Secrets](/ci-cd/secrets) — `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` (reserved)

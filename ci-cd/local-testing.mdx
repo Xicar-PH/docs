@@ -1,0 +1,200 @@
+---
+title: "Local Testing"
+description: "Validate GitHub Actions workflows locally with actionlint and act."
+sidebarTitle: "Local Testing"
+---
+
+Validate workflows before pushing. This repo's caller is [`build.yml`](https://github.com/Xicar-PH/XicarHome/blob/main/.github/workflows/build.yml); the build jobs live in the shared [`xicar-ph/workflows`](https://github.com/xicar-ph/workflows) repo. Three tools, in order of increasing fidelity.
+
+For the secrets referenced in the workflow, see [Secrets](/ci-cd/secrets).
+
+---
+
+## 1. `actionlint` — syntax \+ action inputs
+
+Catches invalid `uses:` references, unknown action inputs, malformed `${{ }}` expressions, runner/OS mismatches, and shell script bugs (via shellcheck).
+
+```bash
+brew install actionlint shellcheck
+actionlint -shellcheck=$(which shellcheck) .github/workflows/build.yml
+# Optional: lint the shared workflow in a local workflows checkout
+actionlint -shellcheck=$(which shellcheck) ../workflows/.github/workflows/flutter-mobile-build.yml
+```
+
+Exit code 0 = clean.
+
+Example of a real bug it caught here: `pub-cache-key-flutter-prefix` was renamed to `pub-cache-key` in newer versions of `subosito/flutter-action`.
+
+---
+
+## 2. `act --list` — workflow structure
+
+Confirms GitHub can parse the file end-to-end (jobs, names, triggers).
+
+```bash
+brew install act
+act --list
+```
+
+Expected output for this repo (caller only — shared jobs run on GitHub, not under `act`):
+
+```text
+Stage  Job ID   Job name              Workflow name           Workflow file  Events
+0      build    build                 Build (Android + iOS)   build.yml      push, workflow_dispatch
+```
+
+<Note>
+  `act` does not execute reusable workflows from other repositories. Use `act --list` / `--dryrun` to validate the caller file; run the full pipeline on GitHub after pushing both repos.
+
+  Apple Silicon Docker warnings are noise on `--list`. Pass `--container-architecture linux/amd64` only when actually running jobs.
+</Note>
+
+---
+
+## 3. `act` — full local execution
+
+Actually runs the workflow in Docker containers.
+
+### Required base image
+
+`act`'s default container (`node:16-buster-slim`) is missing `jq`, `git`, and other tools that GitHub's `ubuntu-latest` runner ships with. Without those, actions like `subosito/flutter-action@v2` fail immediately with `jq not found`.
+
+Always use `catthehacker/ubuntu:act-latest`, which mirrors GitHub's runner image:
+
+```bash
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+This is passed per-invocation (no global config needed). The image is ~1 GB on first pull and cached afterwards.
+
+### Caveats
+
+- Requires Docker Desktop running
+- Apple Silicon: also pass `--container-architecture linux/amd64` to avoid emulation issues
+- Secrets must be passed via `--secret-file` or `--secret` flags — see `act --help`
+- The Android build downloads SDK/NDK \+ Flutter SDK (~2–3 GB) on first run
+- See [Known act limitations](#known-act-limitations) below for what works and what doesn't
+
+### Quick smoke test (no secrets)
+
+```bash
+act workflow_dispatch --dryrun
+```
+
+### Full local build with secrets
+
+Build a secrets file in the format `act` expects (`KEY=VALUE`, one per line, no quotes):
+
+```bash
+cat > /tmp/secrets.env <<EOF
+DEV_ENV_FILE=$(cat .env)
+BETA_ENV_FILE=$(cat .env)
+ANDROID_KEY_PROPERTIES=$(cat android/key.properties)
+ANDROID_KEYSTORE_BASE64=$(base64 -i android/app/upload-keystore.jks | tr -d '\n')
+DEV_ANDROID_GOOGLE_SERVICES_JSON_BASE64=$(base64 -i android/app/google-services.json | tr -d '\n')
+BETA_ANDROID_GOOGLE_SERVICES_JSON_BASE64=$(base64 -i android/app/google-services.json | tr -d '\n')
+EOF
+```
+
+Then run:
+
+```bash
+act workflow_dispatch \
+  --secret-file /tmp/secrets.env \
+  --container-architecture linux/amd64 \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+<Warning>
+  Never commit `/tmp/secrets.env` — it contains raw secrets. Add it to your global gitignore if it lives elsewhere.
+</Warning>
+
+---
+
+## Troubleshooting
+
+### `jq not found. Install it from https://stedolan.github.io/jq`
+
+**Cause:** `act` is using its default `node:16-buster-slim` container, which doesn't include `jq`. Many actions (`subosito/flutter-action`, anything parsing YAML/JSON internally) require it.
+
+**Fix:** pass `-P ubuntu-latest=catthehacker/ubuntu:act-latest` on the `act` command. See [Required base image](#required-base-image).
+
+### `Unable to determine Flutter version for channel: stable version: <ver> architecture: arm64`
+
+**Cause:** `subosito/flutter-action@v2` auto-detected `arm64` inside the `act` container, but Flutter does not publish a Linux ARM64 stable build — only `linux_x64`. The action cannot find a valid download URL.
+
+**Fix:** pin `architecture: x64` on the `Set up Flutter (FVM)` step. This is a no-op on real GitHub runners (always `x86_64`) and makes the download URL deterministic everywhere:
+
+```yaml
+- name: Set up Flutter (FVM)
+  uses: subosito/flutter-action@v2
+  with:
+    architecture: x64
+    # ...other inputs
+```
+
+### `Unable to get the ACTIONS_RUNTIME_TOKEN env variable`
+
+**Cause:** artifact upload step (`actions/upload-artifact@v4`) trying to authenticate to GitHub. This token only exists on real GitHub runners.
+
+**Fix:** this is expected. See [Known act limitations](#known-act-limitations) — artifact upload does not work under `act`. Use `--dryrun` or skip artifact steps when validating locally.
+
+### Apple Silicon emulation is slow / fails
+
+**Cause:** ARM Mac emulating x86 Linux.
+
+**Fix:** pass `--container-architecture linux/amd64` on the `act` command. Native ARM execution isn't supported by most action base images.
+
+### Workflow completes but no AAB/APK files
+
+**Cause:** previous steps failed (look earlier in the log) and Flutter build was skipped. Common triggers: missing secrets, malformed keystore, `flutter-action` failure.
+
+**Fix:** scroll up in the log for the first ❌ line.
+
+---
+
+## Known act limitations
+
+`act` runs workflows locally but is **not a perfect GitHub Actions emulator**. For this workflow:
+
+| Step | Works under `act`? | Notes |
+| --- | --- | --- |
+| `actions/checkout@v4` | ✅ |  |
+| `actions/setup-java@v4` | ✅ |  |
+| `subosito/flutter-action@v2` | ✅ | Requires `jq` (use catthehacker image) and `architecture: x64` pinned — see Troubleshooting |
+| `flutter pub get` | ✅ |  |
+| `flutter build appbundle` / `flutter build apk` | ✅ | Real Android build runs in container |
+| `zip` debug symbols | ✅ |  |
+| `actions/upload-artifact@v4` | ❌ | `ACTIONS_RUNTIME_TOKEN` missing — artifacts vanish at container shutdown |
+| Secret decoding (`base64 -d`, `printf`) | ✅ |  |
+| `google-services.json` / keystore materialization | ✅ | Same as on GitHub |
+
+**Bottom line:** `act` is for verifying the **build itself**. Artifact upload and post-build GitHub-side operations only work on real CI. Always run a final check on GitHub before trusting a release.
+
+---
+
+## What these tools cannot catch
+
+- Whether secrets decode to **valid** files (e.g. corrupt keystore, malformed JSON) — the decode will succeed but the Gradle build will fail downstream
+- Action runtime behaviour bugs that only surface on real GitHub runners
+- Network/registry issues (e.g. Maven Central rate limits, npm registry auth)
+
+---
+
+## Recommended pre-push check
+
+```bash
+actionlint -shellcheck=$(which shellcheck) .github/workflows/build.yml && \
+  ruby -ryaml -e 'YAML.load_file(".github/workflows/build.yml")' && \
+  act --list
+```
+
+If all three pass, the caller workflow is structurally sound. Push the shared workflow to `xicar-ph/workflows@main` first, ensure **Settings → Actions → General → Access** allows this repo to use reusable workflows from `xicar-ph/workflows`, then push the caller and run `workflow_dispatch` on GitHub to validate end-to-end (resolve → Android \+ iOS).
+
+### Run URL for non-default-branch workflows
+
+```text
+https://github.com/<owner>/<repo>/actions/workflows/build.yml?branch=<branch-name>
+```
+
+GitHub's `actions/workflows` API (and `gh workflow run`) only resolves workflows on the default branch, so this URL is the only programmatic trigger that works from a feature branch.
