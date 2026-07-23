@@ -51,6 +51,12 @@
           "ci-cd/android-keystore",
           "ci-cd/play-store"
         ]
+      },
+      {
+        "group": "Services",
+        "pages": [
+          "services/bitwarden"
+        ]
       }
     ]
   },
