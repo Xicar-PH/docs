@@ -1,0 +1,60 @@
+---
+title: "Bitwarden"
+description: "What Bitwarden is, how to connect to the Xicar self-hosted server, and how to accept your invitation."
+icon: "key"
+---
+
+Bitwarden is the password manager Xicar uses for shared credentials and secrets. Your Bitwarden vault stores team passwords, API keys, and other sensitive information you need for development work.
+
+Xicar runs a **self-hosted Bitwarden server** at [https://warden.chadfernandez.me](https://warden.chadfernandez.me). You can use the official Bitwarden browser extension and desktop or mobile apps as usual. Point them at this server URL instead of the default Bitwarden cloud.
+
+Do not share credentials in GitHub issues, pull requests, or chat. Use Bitwarden when you need access to shared secrets.
+
+## Accept your invitation
+
+When you join the team, you receive a Bitwarden invitation by email. Follow these steps to set up your account.
+
+<Steps>
+  <Step title="Open the invitation email">
+    Check your inbox for an email from Bitwarden inviting you to join the Xicar organization. Open the email and click the invitation link.
+  </Step>
+  <Step title="Create your master password">
+    The first thing you do after clicking the link is create your **master password**. This is the primary password for your Bitwarden vault.
+
+    Choose a strong, unique password that you do not use anywhere else. You need this password every time you unlock Bitwarden.
+  </Step>
+  <Step title="Complete account setup">
+    Follow the remaining prompts in the browser to finish creating your account and join the organization.
+  </Step>
+</Steps>
+
+## Connect the Bitwarden app or extension
+
+After you create your account, install the [Bitwarden browser extension](https://bitwarden.com/download/) or desktop/mobile app if you have not already. Before you log in, set the server URL to the Xicar instance.
+
+<Steps>
+  <Step title="Open server settings">
+    In the Bitwarden extension or app, open the login screen and choose **Log in with custom server** or **Settings → Self-hosted environment** (wording may vary by platform).
+  </Step>
+  <Step title="Enter the server URL">
+    Set the server URL to:
+
+    ```text
+    https://warden.chadfernandez.me
+    ```
+
+    Save the setting, then log in with the email and master password you created during invitation setup.
+  </Step>
+</Steps>
+
+<Tip>
+  If you already use Bitwarden for a personal cloud account, add a separate profile or switch the server URL when you need access to Xicar shared credentials.
+</Tip>
+
+<Warning>
+  If you forget your master password, Xicar cannot recover it for you. Store it somewhere safe, such as a personal password manager or a secure offline location.
+</Warning>
+
+## Need help?
+
+If you did not receive an invitation or cannot complete setup, ask a teammate for access. For documentation questions, contact Chad Fernandez on Discord at `@chof64`.
